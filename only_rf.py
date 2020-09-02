@@ -196,24 +196,15 @@ def run(i, INPUT_PATH):
     # Define the rival model
     is_gbt = False
     trained_model = random_forest_classifier(train_x, train_y, rf_estimators, rf_depth)
-    # trained_model_xgb = xgboost_classifier(train_x, train_y, xgb_estimators, xgb_depth)
 
     # Print rivals performances
     rival_auc_rf = roc_auc_score(test_y, trained_model.predict_proba(test_x)[:, 1:])
-    # rival_auc_xgb = roc_auc_score(test_y, trained_model_xgb.predict_proba(test_x)[:, 1:])
-    # print_rivals_performances(rival_auc_rf, rival_auc_xgb, test_x, test_y, train_x, train_y, trained_model,
-    # trained_model_xgb)
 
     # Creating the NN basic parameters
     num_of_estimators_rf = trained_model.n_estimators
     leaf_rf, max_node_rf, tree_dic_rf = get_instances_route(trained_model, train_x, is_gbt)
     probs_rf = trained_model.predict_proba(train_x)
     vocab_size_rf = max_node_rf + 1
-
-    # num_of_estimators_xgb = trained_model_xgb.n_estimators
-    # leaf_xgb, max_node_xgb, tree_dic_xgb = get_instances_route(trained_model_xgb, train_x, not is_gbt)
-    # probs_xgb = trained_model_xgb.predict_proba(train_x)
-    # vocab_size_xgb = max_node_xgb + 1
 
     # Padding all seq to the same size
     max_len_rf = 0
@@ -225,25 +216,10 @@ def run(i, INPUT_PATH):
                 leaf_rf[tree_ind][course_ind] = [leaf_rf[tree_ind][course_ind][0]] * (
                         max_len_rf - len(leaf_rf[tree_ind][course_ind])) + list(leaf_rf[tree_ind][course_ind])
 
-    # max_len_xgb = 0
-    # for t in leaf_xgb:
-    #     max_len_xgb = max(max([len(x) for x in t]), max_len_xgb)
-    # for tree_ind, tree in zip(range(len(leaf_xgb)), leaf_xgb):
-    #     for course_ind, course in zip(range(len(tree)), tree):
-    #         if len(leaf_xgb[tree_ind][course_ind]) < max_len_xgb:
-    #             leaf_xgb[tree_ind][course_ind] = [leaf_xgb[tree_ind][course_ind][0]] * (
-    #                     max_len_xgb - len(leaf_xgb[tree_ind][course_ind])) + list(leaf_xgb[tree_ind][course_ind])
-    # Train language model to RF nodes
     text_for_w2v_rf = list(itertools.chain.from_iterable(leaf_rf))
     for i in range(len(text_for_w2v_rf)):
         text_for_w2v_rf[i] = [str(x) for x in text_for_w2v_rf[i]]
     w2v_model_rf = Word2Vec(text_for_w2v_rf, size=embedding_layer_size, window=5, min_count=1, workers=4)
-
-    # Train language model to XGB nodes
-    # text_for_w2v_xgb = list(itertools.chain.from_iterable(leaf_xgb))
-    # for i in range(len(text_for_w2v_xgb)):
-    #     text_for_w2v_xgb[i] = [str(x) for x in text_for_w2v_xgb[i]]
-    # w2v_model_xgb = Word2Vec(text_for_w2v_xgb, size=embedding_layer_size, window=5, min_count=1, workers=4)
 
     # Convert the nodes output to vectors using the LM
     course_input_rf = []
@@ -251,12 +227,6 @@ def run(i, INPUT_PATH):
         for c_i, course in zip(range(len(t)), t):
             l = list(map(lambda x: w2v_model_rf.wv[x], [str(x) for x in course]))
             course_input_rf.append(l)
-
-    # course_input_xgb = []
-    # for t_i, t in zip(range(len(leaf_xgb)), leaf_xgb):
-    #     for c_i, course in zip(range(len(t)), t):
-    #         l = list(map(lambda x: w2v_model_xgb.wv[x], [str(x) for x in course]))
-    #         course_input_xgb.append(l)
 
     # RF
     main_input = Input(shape=(max_len_rf, embedding_layer_size), dtype='float32',
@@ -272,21 +242,6 @@ def run(i, INPUT_PATH):
     x = Dense(32, activation='relu')(x)
     x = Dense(32, activation='relu')(x)
     auxiliary_output = Dense(NUM_OF_CLASS, activation='sigmoid', name='aux_output')(x)
-
-    # XGB
-    # auxiliary_input_second = Input(shape=(max_len_xgb, embedding_layer_size), dtype='float32',
-    #                                name='auxiliary_input_second')
-    # lstm_out_xgb = LSTM(32, return_sequences=True)(auxiliary_input_second)
-    # y = SeqSelfAttention(attention_activation='sigmoid')(lstm_out_xgb)
-    # y = Flatten()(y)
-    # y = Dense(128, activation='relu')(y)
-    # y = Dropout(0.3, input_shape=(1024,))(y)
-    # y = Dense(128, activation='relu')(y)
-    # y = Dense(128, activation='relu')(y)
-    # y = Dropout(0.3, input_shape=(256,))(y)
-    # y = Dense(32, activation='relu')(y)
-    # y = Dense(32, activation='relu')(y)
-    # auxiliary_output_sec = Dense(NUM_OF_CLASS, activation='sigmoid', name='auxiliary_output_sec')(y)
 
     # NN
     in_shape = train_x.shape[1] + NUM_OF_CLASS
@@ -318,26 +273,8 @@ def run(i, INPUT_PATH):
     if not IS_MULTICLASS:
         auxiliary_train_input_data["prob_0_rf"] = probs_rf[:, 0]
         auxiliary_train_input_data["prob_1_rf"] = probs_rf[:, 1]
-        # auxiliary_train_input_data["prob_0_xgb"] = probs_xgb[:, 0]
-        # auxiliary_train_input_data["prob_1_xgb"] = probs_xgb[:, 1]
 
         auxiliary_train_input_data_for_rivals = auxiliary_train_input_data.copy()
-    # else:
-    #     auxiliary_train_input_data = pd.concat(
-    #         [auxiliary_train_input_data.reset_index(drop=True),
-    #          pd.DataFrame(probs_rf, columns=list(map(lambda y: "prob_rf" + str(y), range(NUM_OF_CLASS))))],
-    #         axis=1, sort=False)
-    #     auxiliary_train_input_data = pd.concat(
-    #         [auxiliary_train_input_data.reset_index(drop=True),
-    #          pd.DataFrame(probs_xgb, columns=list(map(lambda y: "prob_xgb" + str(y), range(NUM_OF_CLASS))))],
-    #         axis=1, sort=False)
-
-    # CHECK if probs_rf helps
-    # auxiliary_train_input_data["prob_0"] = np.random.normal(size=train_x.shape[0])
-    # auxiliary_train_input_data["prob_1"] = np.random.normal(size=train_x.shape[0])
-
-    # CHECK if leaf_rf helps
-    # leaf_rf = np.random.randint(200, vocab_size_rf, size=(train_x.shape[0], num_of_estimators_rf))
 
     if IS_MULTICLASS:
         targets_train = to_categorical(train_y)
@@ -363,16 +300,11 @@ def run(i, INPUT_PATH):
     test_res_rf = trained_model.predict(test_x)
     test_input_net = test_x.copy()
 
-    # test_prob_xgb = trained_model_xgb.predict_proba(test_x)
-    # test_res_xgb = trained_model_xgb.predict(test_x)
-
     if not IS_MULTICLASS:
         print("test res 0: " + str(list(test_res_rf).count(0)))
         print("test res 1: " + str(list(test_res_rf).count(1)))
         test_input_net["prob_0_rf"] = test_prob_rf[:, 0]
         test_input_net["prob_1_rf"] = test_prob_rf[:, 1]
-        # test_input_net["prob_0_xgb"] = test_prob_xgb[:, 0]
-        # test_input_net["prob_1_xgb"] = test_prob_xgb[:, 1]
 
         test_input_rivals = test_input_net.copy()
     else:
@@ -384,9 +316,6 @@ def run(i, INPUT_PATH):
             [test_input_net.reset_index(drop=True),
              pd.DataFrame(test_prob_xgb, columns=list(map(lambda x: "prob_xgb_" + str(x), range(NUM_OF_CLASS))))],
             axis=1, sort=False)
-
-    # This is the test phase after we created the new model we evaluate it on the test set
-    # print("The current fold is:" + str(i))
 
     # Prepare data to test phase
     rf_leaf_test = get_instances_route(trained_model, test_x, is_gbt, tree_dic_rf)[0]
@@ -402,26 +331,11 @@ def run(i, INPUT_PATH):
             l = list(map(lambda x: w2v_model_rf.wv[x], [str(x) for x in course]))
             test_course_input_rf.append(l)
 
-    # xgb_leaf_test = get_instances_route(trained_model_xgb, test_x, not is_gbt, tree_dic_xgb)[0]
-    # for tree_ind, tree in zip(range(len(xgb_leaf_test)), xgb_leaf_test):
-    #     for course_ind, course in zip(range(len(tree)), tree):
-    #         if len(xgb_leaf_test[tree_ind][course_ind]) < max_len_xgb:
-    #             xgb_leaf_test[tree_ind][course_ind] = [xgb_leaf_test[tree_ind][course_ind][0]] * (
-    #                     max_len_xgb - len(xgb_leaf_test[tree_ind][course_ind])) + list(
-    #                 xgb_leaf_test[tree_ind][course_ind])
-    # test_course_input_xgb = []
-    # for t_i, t in zip(range(len(xgb_leaf_test)), xgb_leaf_test):
-    #     for c_i, course in zip(range(len(t)), t):
-    #         l = list(map(lambda x: w2v_model_xgb.wv[x], [str(x) for x in course]))
-    #         test_course_input_xgb.append(l)
-
     test_course_input_rf = np.array(test_course_input_rf)
     # test_course_input_xgb = np.array(test_course_input_xgb)
     test_input_net = pd.concat([test_input_net] * rf_estimators, ignore_index=True)
     test_y_net = pd.concat([targets_test] * rf_estimators, ignore_index=True)
 
-    # loss, main_loss, aux_loss, sec_aux_loss, main_acc, aux_acc, sec_aux_acc = model_deep_forest.evaluate(
-    #     [test_course_input_rf, test_input_net, test_course_input_xgb], [test_y_net, test_y_net, test_y_net])
     if not IS_MULTICLASS:
         test_probs = model_deep_forest.predict([test_course_input_rf, test_input_net])
         test_prob_list = list(test_probs[0])
@@ -438,19 +352,6 @@ def run(i, INPUT_PATH):
             else:
                 cl = 0
             preds_e.append(cl)
-        # print("Embeding rf:\n")
-        # print(confusion_matrix(test_y_net, preds_e))
-        # XGB Embedding
-        # preds_e = []
-        # for li in test_probs[2]:
-        #     proba = float(li[0])
-        #     if proba > 0.5:
-        #         cl = 1
-        #     else:
-        #         cl = 0
-        #     preds_e.append(cl)
-        # # print("Embeding xgb:\n")
-        # print(confusion_matrix(test_y_net, preds_e))
         # Final prediction
         preds = []
         for li in test_probs[1]:
@@ -460,15 +361,8 @@ def run(i, INPUT_PATH):
             else:
                 cl = 0
             preds.append(cl)
-        # print("\nFinal prediction:\n")
-        # print(confusion_matrix(test_y_net, preds))
 
-        # print("**********************")
-        # print('Forest encoding test accuracy:', accuracy_score(test_y_net, preds))
-        # print("**********************")
-        # print("\nAUC:\n")
         fe_acu = roc_auc_score(test_y, final_preds_average)
-        # print(fe_acu)
 
         # Check rivals performnces
         xgb_rival_mx_depth = 10

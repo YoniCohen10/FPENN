@@ -1,5 +1,7 @@
 # FPENN
-Implementation of "FPENN****". This paper is under review in AAAI 2021 conference.
+Implementation of "FPENN Forest path encoding for neural networks".
+
+This paper accepted to Information Fusion.
 
 If you find this code useful in your research, please cite the paper: (TODO: Add citation) 
 
